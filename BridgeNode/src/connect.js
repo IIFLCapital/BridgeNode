@@ -1,6 +1,7 @@
 const mqtt = require("mqtt");
 const axios = require("axios");
 const EventEmitter = require("events");
+// const https = require('https');
 const {
   SubscribeFeedResponse,
   Result,
@@ -8,6 +9,9 @@ const {
   ConnectionResponse,
   DisconnectionResponse,
 } = require("./models");
+const EncryptionDecryption = require("./EncryptionDecryption");
+const { parse } = require("path");
+const { json } = require("stream/consumers");
 
 /**
  * @class Connect
@@ -31,7 +35,7 @@ class Connect extends EventEmitter {
   static _order = "prod/updates/order/v1/";
   static _trade = "prod/updates/trade/v1/";
   static _validateTokenUrl =
-    "https://idaas.iiflsecurities.com/v1/access/check/token";
+    "https://idaas.iiflsecurities.com/v2/access/check/token";
 
   constructor() {
     if (Connect.instance) {
@@ -43,6 +47,7 @@ class Connect extends EventEmitter {
   static getInstance() {
     if (!Connect.instance) {
       Connect.instance = new Connect();
+      this.crypto = new EncryptionDecryption();
     }
     return Connect.instance;
   }
@@ -248,16 +253,30 @@ class Connect extends EventEmitter {
    */
   static async ValidateTokenAsync(clientID, token) {
     try {
+      await this.crypto.init();
       const jReq = {
         userId: clientID,
         token: token,
       };
+      const plainText = `{ "userId":"${clientID}","token":"${token}" }`;
 
-      const response = await axios.post(Connect._validateTokenUrl, jReq, {
+      const encrypted = await this.crypto.Encrypt(plainText);
+      
+      const reqPayload = JSON.stringify({ cEncData: encrypted });
+      
+      // const agent = new https.Agent({  
+      //       rejectUnauthorized: false  // ⚠️ only for testing, disables SSL verification
+      //       });
+
+      const response = await axios.post(Connect._validateTokenUrl, reqPayload, {
         headers: { "Content-Type": "application/json" },
+        // httpsAgent: agent
       });
 
-      const resData = response.data;
+      // Call decrypt
+      const decrypted = await this.crypto.Decrypt(response.data.cRespEncData);
+
+      const resData = JSON.parse(decrypted);
 
       if (response.status === 200) {
         return resData.result;
