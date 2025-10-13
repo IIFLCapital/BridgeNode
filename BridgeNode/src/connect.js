@@ -144,7 +144,7 @@ class Connect extends EventEmitter {
         //   return new WebSocket(url, subProtocols);
         // };
 
-        this.client = mqtt.connect(host, {
+        this.client = mqtt.connect("mqtts://" + host, {
           clientId: `${username}_node_${timestamp}`,
           username: username,
           password: "OPENID~~" + token + "~",
@@ -215,13 +215,8 @@ class Connect extends EventEmitter {
         });
       } catch (error) {
         this.emit("OnError", -1, error.message);
-        reject(
-          JSON.stringify(
-            new ConnectionResponse()
-              ? error
-              : new ConnectionResponse(-1, error.message)
-          )
-        );
+        const response = new ConnectionResponse(-1, error.message);
+        reject(JSON.stringify(response));
       }
     });
   }
